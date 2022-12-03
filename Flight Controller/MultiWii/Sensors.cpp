@@ -1145,6 +1145,65 @@ void Device_Mag_getADC() {
 #endif
 
 // ************************************************************************************************************
+// I2C Compass QMC5883L
+// ************************************************************************************************************
+// I2C adress: 0x0D (8bit)
+// ************************************************************************************************************
+#if defined(QMC5883L)
+
+#define MAG_ADDRESS 0x0D
+#define MAG_DATA_REGISTER 0x01
+#define REG_CONFIG_1 0x09
+#define REG_CONFIG_2 0x0A
+
+/*
+OSR (Over Sample Ratio)
+OSR_512 (1)        0b00000000
+OSR_256 (2)        0b01000000
+OSR_128 (4)        0b10000000
+OSR_64  (8)        0b11000000
+
+Range
+RNG_2G          0b00000000
+RNG_8G          0b00010000
+
+ODR (Output Data Rate)
+ODR_10Hz        0b00000000
+ODR_50Hz        0b00000100
+ODR_100Hz       0b00001000
+ODR_200Hz       0b00001100
+
+MODE
+Mode_Standby    0b00000000
+Mode_Continuous 0b00000001
+*/
+#define OPERATION_MODE 0x1D // 00 01 11 01 OSR=00; Range=01; ODR=11; MODE=01
+
+void Mag_init() {
+  delay(100);
+  // Automatic Soft Reset
+  i2c_writeReg(MAG_ADDRESS, REG_CONFIG_2, 0x80);
+  delay(100);
+  // OSR = 512, Full Scale Range = 8 Gauss, ODR = 200Hz, Continuous measurement mode
+  i2c_writeReg(MAG_ADDRESS, REG_CONFIG_1, OPERATION_MODE);
+  delay(100);
+}
+
+static void getADC() {
+  i2c_getSixRawADC(MAG_ADDRESS, MAG_DATA_REGISTER);
+  MAG_ORIENTATION( ((rawADC[0]<<8) | rawADC[1]) ,
+                   ((rawADC[2]<<8) | rawADC[3]) ,
+                   ((rawADC[4]<<8) | rawADC[5]) );
+}
+
+#if !defined(MPU6050_I2C_AUX_MASTER)
+static void Device_Mag_getADC() {
+  getADC();
+}
+#endif
+#endif
+
+// ************************************************************************************************************
 // I2C Gyroscope and Accelerometer MPU6050
 // ************************************************************************************************************
 #if defined(MPU6050)
@@ -1215,6 +1274,14 @@ void ACC_getADC () {
       #if defined (MAG3110)
         MAG_ORIENTATION( ((rawADC[0]<<8) | rawADC[1]) ,          
                          ((rawADC[2]<<8) | rawADC[3]) ,     
+                         ((rawADC[4]<<8) | rawADC[5]) );
+      #endif
+      #if defined(QMC5883L)
+        /*MAG_ORIENTATION( ((rawADC[1]<<8) | rawADC[0]) ,
+                         ((rawADC[3]<<8) | rawADC[2]) ,
+                         ((rawADC[5]<<8) | rawADC[4]) );*/
+        MAG_ORIENTATION( ((rawADC[0]<<8) | rawADC[1]) ,
+                         ((rawADC[2]<<8) | rawADC[3]) ,
                          ((rawADC[4]<<8) | rawADC[5]) );
       #endif
     }

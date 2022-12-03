@@ -187,9 +187,10 @@
 
       /* I2C magnetometer */
       //#define HMC5843
-      //#define HMC5883
+      //#define HMC5883 // Original GY-273 (L883)
       //#define AK8975
       //#define MAG3110
+      //#define QMC5883L // HMC5883L Copy GY-271 (DA5883)
 
       /* Sonar */ // for visualization purpose currently - no control code behind
       //#define SRF02 // use the Devantech SRF i2c sensors
