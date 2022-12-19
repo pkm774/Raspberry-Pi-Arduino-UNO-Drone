@@ -19,20 +19,30 @@
 #include <EEPROM.h>             //Include the EEPROM.h library so we can store information onto the EEPROM
 
 //Declaring Global Variables
-byte last_channel_1, last_channel_2, last_channel_3, last_channel_4;
-byte lowByte, highByte, type, gyro_address, error, clockspeed_ok;
-byte channel_1_assign, channel_2_assign, channel_3_assign, channel_4_assign;
-byte roll_axis, pitch_axis, yaw_axis;
-byte receiver_check_byte, gyro_check_byte;
-volatile int receiver_input_channel_1, receiver_input_channel_2, receiver_input_channel_3, receiver_input_channel_4;
-int center_channel_1, center_channel_2, center_channel_3, center_channel_4;
-int high_channel_1, high_channel_2, high_channel_3, high_channel_4;
-int low_channel_1, low_channel_2, low_channel_3, low_channel_4;
-int address, cal_int;
-unsigned long timer, timer_1, timer_2, timer_3, timer_4, current_time;
-float gyro_pitch, gyro_roll, gyro_yaw;
-float gyro_roll_cal, gyro_pitch_cal, gyro_yaw_cal;
+uint8_t last_channel_1, last_channel_2, last_channel_3, last_channel_4;
+uint8_t lowByte, highByte, type, error, clockspeed_ok;
+uint8_t channel_1_assign, channel_2_assign, channel_3_assign, channel_4_assign;
+uint8_t roll_axis, pitch_axis, yaw_axis;
+uint8_t receiver_check_byte, gyro_check_byte;
 
+int gyro_address;
+
+int16_t address, cal_int;
+
+int32_t receiver_input_channel_1, counter_channel_1;
+int32_t receiver_input_channel_2, counter_channel_2;
+int32_t receiver_input_channel_3, counter_channel_3;
+int32_t receiver_input_channel_4, counter_channel_4;
+int32_t gyro_roll_cal, gyro_pitch_cal, gyro_yaw_cal;
+
+int32_t high_channel_1, center_channel_1, low_channel_1;
+int32_t high_channel_2, center_channel_2, low_channel_2;
+int32_t high_channel_3, center_channel_3, low_channel_3;
+int32_t high_channel_4, center_channel_4, low_channel_4;
+
+unsigned long timer, timer_1, timer_2, timer_3, timer_4, current_time;
+
+float gyro_pitch, gyro_roll, gyro_yaw;
 
 //Setup routine
 void setup(){
@@ -663,7 +673,7 @@ void check_receiver_inputs(byte movement){
 }
 
 void check_to_continue(){
-  byte continue_byte = 0;
+  uint8_t continue_byte = 0;
   while(continue_byte == 0){
     if(channel_2_assign == 0b00000001 && receiver_input_channel_1 > center_channel_1 + 150)continue_byte = 1;
     if(channel_2_assign == 0b10000001 && receiver_input_channel_1 < center_channel_1 - 150)continue_byte = 1;
@@ -680,7 +690,7 @@ void check_to_continue(){
 
 //Check if the transmitter sticks are in the neutral position
 void wait_sticks_zero(){
-  byte zero = 0;
+  uint8_t zero = 0;
   while(zero < 15){
     if(receiver_input_channel_1 < center_channel_1 + 20 && receiver_input_channel_1 > center_channel_1 - 20)zero |= 0b00000001;
     if(receiver_input_channel_2 < center_channel_2 + 20 && receiver_input_channel_2 > center_channel_2 - 20)zero |= 0b00000010;
@@ -692,7 +702,7 @@ void wait_sticks_zero(){
 
 //Checck if the receiver values are valid within 10 seconds
 void wait_for_receiver(){
-  byte zero = 0;
+  uint8_t zero = 0;
   timer = millis() + 10000;
   while(timer > millis() && zero < 15){
     if(receiver_input_channel_1 < 2100 && receiver_input_channel_1 > 900)zero |= 0b00000001;
@@ -712,15 +722,22 @@ void wait_for_receiver(){
 
 //Register the min and max receiver values and exit when the sticks are back in the neutral position
 void register_min_max(){
-  byte zero = 0;
+  uint8_t zero = 0;
+  Serial.println(zero);
   low_channel_1 = receiver_input_channel_1;
+  Serial.println(low_channel_1);
   low_channel_2 = receiver_input_channel_2;
+  Serial.println(low_channel_2);
   low_channel_3 = receiver_input_channel_3;
+  Serial.println(low_channel_3);
   low_channel_4 = receiver_input_channel_4;
+  Serial.println(low_channel_4);
   while(receiver_input_channel_1 < center_channel_1 + 20 && receiver_input_channel_1 > center_channel_1 - 20)delay(250);
   Serial.println(F("Measuring endpoints...."));
+  Serial.println(zero);
   while(zero < 15){
     if(receiver_input_channel_1 < center_channel_1 + 20 && receiver_input_channel_1 > center_channel_1 - 20)zero |= 0b00000001;
+    Serial.println(zero);
     if(receiver_input_channel_2 < center_channel_2 + 20 && receiver_input_channel_2 > center_channel_2 - 20)zero |= 0b00000010;
     if(receiver_input_channel_3 < center_channel_3 + 20 && receiver_input_channel_3 > center_channel_3 - 20)zero |= 0b00000100;
     if(receiver_input_channel_4 < center_channel_4 + 20 && receiver_input_channel_4 > center_channel_4 - 20)zero |= 0b00001000;
@@ -733,12 +750,14 @@ void register_min_max(){
     if(receiver_input_channel_3 > high_channel_3)high_channel_3 = receiver_input_channel_3;
     if(receiver_input_channel_4 > high_channel_4)high_channel_4 = receiver_input_channel_4;
     delay(100);
+    Serial.println(zero);
   }
+  Serial.println(F("Exit....."));
 }
 
 //Check if the angular position of a gyro axis is changing within 10 seconds
 void check_gyro_axes(byte movement){
-  byte trigger_axis = 0;
+  uint8_t trigger_axis = 0;
   float gyro_angle_roll, gyro_angle_pitch, gyro_angle_yaw;
   //Reset all axes
   gyro_angle_roll = 0;
