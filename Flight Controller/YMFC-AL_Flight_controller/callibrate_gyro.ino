@@ -23,5 +23,11 @@ void callibrate_gyro(void) {
     gyro_roll_cal /= 2000;                                                  //Divide the roll total by 2000.
     gyro_pitch_cal /= 2000;                                                 //Divide the pitch total by 2000.
     gyro_yaw_cal /= 2000;                                                   //Divide the yaw total by 2000.
+
+#if defined(DEBUG_ANGLE)
+  Serial.print(F(" gyro_roll_cal = "));Serial.print(gyro_roll_cal);
+  Serial.print(F(" gyro_pitch_cal = "));Serial.print(gyro_pitch_cal);
+  Serial.print(F(" gyro_yaw_cal = "));Serial.println(gyro_yaw_cal);
+#endif
   }
 }

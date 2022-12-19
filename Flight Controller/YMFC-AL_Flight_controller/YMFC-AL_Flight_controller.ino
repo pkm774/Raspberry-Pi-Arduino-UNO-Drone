@@ -19,6 +19,28 @@
 #include <EEPROM.h>                        //Include the EEPROM.h library so we can store information onto the EEPROM
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//For debugging and testing purpose
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//#define DEBUG                              //Enable for serial Monitoring at 57600 baud.
+// Uncomment according to purpose.
+//#define DEBUG_BATTERY
+//#define DEBUG_ANGLE
+//#define DEBUG_ESC
+//#define DEBUG_RCSIGNAL
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//Maximum allowed signal and motor pulse
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+const int allowed_limit = 1850;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//During flight the battery voltage drops and the motors are spinning at a lower RPM. This has a negative effecct on the
+//altitude hold function. With the battery_compensation variable it's possible to compensate for the battery voltage drop.
+//Increase this value when the quadcopter drops due to a lower battery voltage during a non altitude hold flight.
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+const float battery_compensation = 40.00;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //PID gain and limit settings
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 float pid_p_gain_roll = 2.2;               //Gain setting for the roll P-controller
@@ -76,7 +98,10 @@ float battery_voltage;
 //Setup routine
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
-  //Serial.begin(57600);
+#if defined(DEBUG)
+  Serial.begin(57600);
+#endif
+
   //Copy the EEPROM data for fast access data.
   for (int16_t data = 0; data <= 35; data++)eeprom_data[data] = EEPROM.read(data);
 
@@ -142,9 +167,13 @@ void setup() {
   //4.2V  = 4.2 * (1023/5) = 859.32 analog input.
   //12.6V equals 859.32 analogRead(0).
   //1260 / 859.32 = 1.466.
-  //Compensation of 18 due to internal circuit.
-  battery_voltage = ((float)analogRead(0) * 1.466) + 18; // /100 = Voltage
+  //Compensation +10 due to internal circuit.
+  battery_voltage = ((float)analogRead(0) * 1.466) + 10; // /100 = Voltage
   //The variable battery_voltage holds 1265 if the battery voltage is 12.65V.
+#if defined(DEBUG_BATTERY)
+  Serial.print(F("AnalogRead(0) = ")); Serial.print((float)analogRead(0));
+  Serial.print(F(" Battery_voltage = ")); Serial.println(battery_voltage);
+#endif
 
   loop_timer = micros();                                                    //Set the timer for the next loop.
 
@@ -182,11 +211,16 @@ void loop() {
     angle_pitch_acc = asin((float)acc_y / acc_total_vector) * 57.296;       //Calculate the pitch angle.
   }
   if (abs(acc_x) < acc_total_vector) {                                      //Prevent the asin function to produce a NaN
-    angle_roll_acc = asin((float)acc_x / acc_total_vector) * - 57.296;       //Calculate the roll angle.
+    angle_roll_acc = asin((float)acc_x / acc_total_vector) * -57.296;        //Calculate the roll angle.
   }
 
   angle_pitch = angle_pitch * 0.9996 + angle_pitch_acc * 0.0004;            //Correct the drift of the gyro pitch angle with the accelerometer pitch angle.
   angle_roll = angle_roll * 0.9996 + angle_roll_acc * 0.0004;               //Correct the drift of the gyro roll angle with the accelerometer roll angle.
+
+#if defined(DEBUG_ANGLE)
+  Serial.print(F(" angle_pitch = ")); Serial.print(angle_pitch);
+  Serial.print(F(" angle_roll = ")); Serial.println(angle_roll);
+#endif
 
   pitch_level_adjust = angle_pitch * 15;                                    //Calculate the pitch angle correction
   roll_level_adjust = angle_roll * 15;                                      //Calculate the roll angle correction
@@ -195,6 +229,11 @@ void loop() {
     pitch_level_adjust = 0;                                                 //Set the pitch angle correction to zero.
     roll_level_adjust = 0;                                                  //Set the roll angle correcion to zero.
   }
+
+#if defined(DEBUG_ANGLE)
+  Serial.print(F(" pitch_level_adjust = ")); Serial.print(pitch_level_adjust);
+  Serial.print(F(" roll_level_adjust = ")); Serial.println(roll_level_adjust);
+#endif
 
   //For starting the motors: throttle low and yaw left (step 1).
   if (receiver_input_channel_3 < 1050 && receiver_input_channel_4 < 1050)start = 1;
@@ -222,13 +261,21 @@ void loop() {
   //The battery voltage is needed for compensation.
   //A complementary filter is used to reduce noise.
   //0.117 = 0.08 * 1.466.
-  // +1 for compensation.
+  // +1 for error(+-1) compensation.
   battery_voltage = (battery_voltage * 0.92) + ((float)analogRead(0) * 0.117) + 1;
+#if defined(DEBUG_BATTERY)
+  Serial.print(F("AnalogRead(0) = ")); Serial.print((float)analogRead(0));
+  Serial.print(F(" Battery_voltage = ")); Serial.println(battery_voltage);
+#endif
 
   //Turn on the led if battery voltage is to low.
   if (battery_voltage < 1000 && battery_voltage > 600)digitalWrite(12, HIGH);
 
   throttle = receiver_input_channel_3;                                      //We need the throttle signal as a base signal.
+
+#if defined(DEBUG_RCSIGNAL)
+  Serial.print(F(" Throttle signal = ")); Serial.println(throttle);
+#endif
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   //Creating the pulses for the ESC's is explained in this video:
@@ -236,28 +283,38 @@ void loop() {
   ////////////////////////////////////////////////////////////////////////////////////////////////////
 
   if (start == 2) {                                                         //The motors are started.
-    if (throttle > 1800) throttle = 1800;                                   //We need some room to keep full control at full throttle.
+
+    if (throttle > allowed_limit) throttle = allowed_limit;                 //We need some room to keep full control at full throttle.
+
     esc_1 = throttle - pid_output_pitch + pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 1 (front-right - CCW)
     esc_2 = throttle + pid_output_pitch + pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 2 (rear-right - CW)
     esc_3 = throttle + pid_output_pitch - pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 3 (rear-left - CCW)
     esc_4 = throttle - pid_output_pitch - pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 4 (front-left - CW)
 
     if (battery_voltage < 1240 && battery_voltage > 900) {                  //Is the battery connected?
-      esc_1 += esc_1 * ((1240 - battery_voltage) / (float)3500);            //Compensate the esc-1 pulse for voltage drop.
-      esc_2 += esc_2 * ((1240 - battery_voltage) / (float)3500);            //Compensate the esc-2 pulse for voltage drop.
-      esc_3 += esc_3 * ((1240 - battery_voltage) / (float)3500);            //Compensate the esc-3 pulse for voltage drop.
-      esc_4 += esc_4 * ((1240 - battery_voltage) / (float)3500);            //Compensate the esc-4 pulse for voltage drop.
+      esc_1 += (1240 - battery_voltage) / battery_compensation;             //Compensate the esc-1 pulse for voltage drop.
+      esc_2 += (1240 - battery_voltage) / battery_compensation;             //Compensate the esc-2 pulse for voltage drop.
+      esc_3 += (1240 - battery_voltage) / battery_compensation;             //Compensate the esc-3 pulse for voltage drop.
+      esc_4 += (1240 - battery_voltage) / battery_compensation;             //Compensate the esc-4 pulse for voltage drop.
     }
+
+    //These values can vary according to the ESCs.
+    //So it is necessary to recalculate errors and compensate
+    //values after changing ESCs.
+    esc_1 -= 3;                                                            // Correct the esc-1 pulse error.
+    esc_2 += 20;                                                           // Correct the esc-2 pulse error.
+    esc_3 += 10;                                                           // Correct the esc-3 pulse error.
+    esc_4 -= 7;                                                            // Correct the esc-4 pulse error.
 
     if (esc_1 < 1100) esc_1 = 1100;                                         //Keep the motors running.
     if (esc_2 < 1100) esc_2 = 1100;                                         //Keep the motors running.
     if (esc_3 < 1100) esc_3 = 1100;                                         //Keep the motors running.
     if (esc_4 < 1100) esc_4 = 1100;                                         //Keep the motors running.
 
-    if (esc_1 > 2000)esc_1 = 2000;                                          //Limit the esc-1 pulse to 2000us.
-    if (esc_2 > 2000)esc_2 = 2000;                                          //Limit the esc-2 pulse to 2000us.
-    if (esc_3 > 2000)esc_3 = 2000;                                          //Limit the esc-3 pulse to 2000us.
-    if (esc_4 > 2000)esc_4 = 2000;                                          //Limit the esc-4 pulse to 2000us.
+    if (esc_1 > allowed_limit)esc_1 = allowed_limit;                        //Limit the esc-1 pulse to 1950us for stability.
+    if (esc_2 > allowed_limit)esc_2 = allowed_limit;                        //Limit the esc-2 pulse to 1950us for stability.
+    if (esc_3 > allowed_limit)esc_3 = allowed_limit;                        //Limit the esc-3 pulse to 1950us for stability.
+    if (esc_4 > allowed_limit)esc_4 = allowed_limit;                        //Limit the esc-4 pulse to 1950us for stability.
   }
 
   else {
@@ -266,6 +323,13 @@ void loop() {
     esc_3 = 1000;                                                           //If start is not 2 keep a 1000us pulse for ess-3.
     esc_4 = 1000;                                                           //If start is not 2 keep a 1000us pulse for ess-4.
   }
+
+#if defined(DEBUG_ESC)
+  Serial.print(F("esc_1 = ")); Serial.print(esc_1);
+  Serial.print(F(" esc_2 = ")); Serial.print(esc_2);
+  Serial.print(F(" esc_3 = ")); Serial.print(esc_3);
+  Serial.print(F(" esc_4 = ")); Serial.println(esc_4);
+#endif
 
   //! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! !
   //Because of the angle calculation the loop time is getting very important. If the loop time is
