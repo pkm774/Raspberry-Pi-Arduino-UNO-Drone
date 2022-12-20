@@ -43,20 +43,23 @@ const float battery_compensation = 40.00;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //PID gain and limit settings
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-float pid_p_gain_roll = 2.2;               //Gain setting for the roll P-controller
-float pid_i_gain_roll = 0.00;              //Gain setting for the roll I-controller
-float pid_d_gain_roll = 18.0;              //Gain setting for the roll D-controller
-const int pid_max_roll = 400;              //Maximum output of the PID-controller (+/-)
+// PID for ROLL
+const float pid_p_gain_roll = 3.00;              //Gain setting for the roll P-controller
+const float pid_i_gain_roll = 0.00;              //Gain setting for the roll I-controller
+const float pid_d_gain_roll = 17.60;             //Gain setting for the roll D-controller
+const int pid_max_roll = 400;                    //Maximum output of the PID-controller (+/-)
 
-float pid_p_gain_pitch = pid_p_gain_roll;  //Gain setting for the pitch P-controller.
-float pid_i_gain_pitch = pid_i_gain_roll;  //Gain setting for the pitch I-controller.
-float pid_d_gain_pitch = pid_d_gain_roll;  //Gain setting for the pitch D-controller.
-const int pid_max_pitch = pid_max_roll;    //Maximum output of the PID-controller (+/-)
+// PID for PITCH (same as ROLL)
+const float pid_p_gain_pitch = pid_p_gain_roll;  //Gain setting for the pitch P-controller.
+const float pid_i_gain_pitch = pid_i_gain_roll;  //Gain setting for the pitch I-controller.
+const float pid_d_gain_pitch = pid_d_gain_roll;  //Gain setting for the pitch D-controller.
+const int pid_max_pitch = pid_max_roll;          //Maximum output of the PID-controller (+/-)
 
-float pid_p_gain_yaw = 4.0;                //Gain setting for the pitch P-controller. //4.0
-float pid_i_gain_yaw = 0.02;               //Gain setting for the pitch I-controller. //0.02
-float pid_d_gain_yaw = 0.0;                //Gain setting for the pitch D-controller.
-const int pid_max_yaw = 400;               //Maximum output of the PID-controller (+/-)
+// PID for YAW
+const float pid_p_gain_yaw = 4.00;               //Gain setting for the pitch P-controller.
+const float pid_i_gain_yaw = 0.02;               //Gain setting for the pitch I-controller.
+const float pid_d_gain_yaw = 0.00;               //Gain setting for the pitch D-controller.
+const int pid_max_yaw = 400;                     //Maximum output of the PID-controller (+/-)
 
 const boolean auto_level = true;                 //Auto level on (true) or off (false)
 
@@ -65,7 +68,6 @@ const boolean auto_level = true;                 //Auto level on (true) or off (
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 uint8_t last_channel_1, last_channel_2, last_channel_3, last_channel_4;
 uint8_t eeprom_data[36];
-uint8_t highByte, lowByte;
 
 int16_t esc_1, esc_2, esc_3, esc_4;
 int16_t throttle, cal_int, start, temperature;
@@ -75,24 +77,24 @@ int receiver_input[5];
 int acc_axis[4], gyro_axis[4];
 int gyro_address;
 
-long acc_x, acc_y, acc_z, acc_total_vector;
-unsigned long timer_channel_1, timer_channel_2, timer_channel_3, timer_channel_4, esc_timer, esc_loop_timer;
-unsigned long timer_1, timer_2, timer_3, timer_4, current_time;
-unsigned long loop_timer;
-
-int32_t receiver_input_channel_1, counter_channel_1;
-int32_t receiver_input_channel_2, counter_channel_2;
-int32_t receiver_input_channel_3, counter_channel_3;
-int32_t receiver_input_channel_4, counter_channel_4;
+int32_t receiver_input_channel_1;
+int32_t receiver_input_channel_2;
+int32_t receiver_input_channel_3;
+int32_t receiver_input_channel_4;
 int32_t gyro_roll_cal, gyro_pitch_cal, gyro_yaw_cal;
 
-float roll_level_adjust, pitch_level_adjust;
 float pid_error_temp;
+float battery_voltage;
+float roll_level_adjust, pitch_level_adjust;
 float pid_i_mem_roll, pid_roll_setpoint, gyro_roll_input, pid_output_roll, pid_last_roll_d_error;
 float pid_i_mem_pitch, pid_pitch_setpoint, gyro_pitch_input, pid_output_pitch, pid_last_pitch_d_error;
 float pid_i_mem_yaw, pid_yaw_setpoint, gyro_yaw_input, pid_output_yaw, pid_last_yaw_d_error;
 float angle_roll_acc, angle_pitch_acc, angle_pitch, angle_roll;
-float battery_voltage;
+
+long acc_x, acc_y, acc_z, acc_total_vector;
+unsigned long timer_channel_1, timer_channel_2, timer_channel_3, timer_channel_4, esc_timer, esc_loop_timer;
+unsigned long timer_1, timer_2, timer_3, timer_4, current_time;
+unsigned long loop_timer;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Setup routine
@@ -111,7 +113,7 @@ void setup() {
   gyro_address = eeprom_data[32];                                           //Store the gyro address in the variable.
 
   Wire.begin();                                                             //Start the I2C as master.
-  Wire.setClock(400000);                                                    //Set the SCL clock speed to 400kHz
+  Wire.setClock(800000);                                                    //Set the SCL clock speed to 800kHz fastest possible speed.
 
   //Arduino (Atmega) pins default to inputs, so they don't need to be explicitly declared as inputs.
   DDRD |= B11110000;                                                        //Configure digital poort 4, 5, 6 and 7 as output.
@@ -284,7 +286,7 @@ void loop() {
 
   if (start == 2) {                                                         //The motors are started.
 
-    if (throttle > allowed_limit) throttle = allowed_limit;                 //We need some room to keep full control at full throttle.
+    if (throttle > allowed_limit) throttle = allowed_limit;                 //We need some room to keep full control at full throttle of 1850.
 
     esc_1 = throttle - pid_output_pitch + pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 1 (front-right - CCW)
     esc_2 = throttle + pid_output_pitch + pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 2 (rear-right - CW)
@@ -298,23 +300,15 @@ void loop() {
       esc_4 += (1240 - battery_voltage) / battery_compensation;             //Compensate the esc-4 pulse for voltage drop.
     }
 
-    //These values can vary according to the ESCs.
-    //So it is necessary to recalculate errors and compensate
-    //values after changing ESCs.
-    esc_1 -= 3;                                                            // Correct the esc-1 pulse error.
-    esc_2 += 20;                                                           // Correct the esc-2 pulse error.
-    esc_3 += 10;                                                           // Correct the esc-3 pulse error.
-    esc_4 -= 7;                                                            // Correct the esc-4 pulse error.
-
     if (esc_1 < 1100) esc_1 = 1100;                                         //Keep the motors running.
     if (esc_2 < 1100) esc_2 = 1100;                                         //Keep the motors running.
     if (esc_3 < 1100) esc_3 = 1100;                                         //Keep the motors running.
     if (esc_4 < 1100) esc_4 = 1100;                                         //Keep the motors running.
 
-    if (esc_1 > allowed_limit)esc_1 = allowed_limit;                        //Limit the esc-1 pulse to 1950us for stability.
-    if (esc_2 > allowed_limit)esc_2 = allowed_limit;                        //Limit the esc-2 pulse to 1950us for stability.
-    if (esc_3 > allowed_limit)esc_3 = allowed_limit;                        //Limit the esc-3 pulse to 1950us for stability.
-    if (esc_4 > allowed_limit)esc_4 = allowed_limit;                        //Limit the esc-4 pulse to 1950us for stability.
+    if (esc_1 > allowed_limit)esc_1 = allowed_limit;                        //Limit the esc-1 pulse to 1850us for stability.
+    if (esc_2 > allowed_limit)esc_2 = allowed_limit;                        //Limit the esc-2 pulse to 1850us for stability.
+    if (esc_3 > allowed_limit)esc_3 = allowed_limit;                        //Limit the esc-3 pulse to 1850us for stability.
+    if (esc_4 > allowed_limit)esc_4 = allowed_limit;                        //Limit the esc-4 pulse to 1850us for stability.
   }
 
   else {
