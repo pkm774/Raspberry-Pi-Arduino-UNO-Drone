@@ -98,8 +98,7 @@ void setup(){
   gyro_address = eeprom_data[32];                                           //Store the gyro address in the variable.
 
   Wire.begin();                                                             //Start the I2C as master.
-
-  TWBR = 12;                                                                //Set the I2C clock speed to 400kHz.
+  Wire.setClock(400000);                                                    //Set the SCL clock speed to 400kHz fastest possible speed.
 
   //Arduino (Atmega) pins default to inputs, so they don't need to be explicitly declared as inputs.
   DDRD |= B11110000;                                                        //Configure digital poort 4, 5, 6 and 7 as output.
