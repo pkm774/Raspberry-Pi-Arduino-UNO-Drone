@@ -28,7 +28,11 @@ void calculate_pid(){
   pid_last_pitch_d_error = pid_error_temp;
 
   //Yaw calculations
-  pid_error_temp = gyro_yaw_input - pid_yaw_setpoint;
+  // Adjust yaw angle
+  float desired_heading = 0;                                                  //0 indicates default to North.
+  float error = heading - desired_heading;                                    //Calculate error.
+
+  pid_error_temp = gyro_yaw_input - pid_yaw_setpoint - pid_p_gain_yaw * error;
   pid_i_mem_yaw += pid_i_gain_yaw * pid_error_temp;
   if(pid_i_mem_yaw > pid_max_yaw)pid_i_mem_yaw = pid_max_yaw;
   else if(pid_i_mem_yaw < pid_max_yaw * -1)pid_i_mem_yaw = pid_max_yaw * -1;

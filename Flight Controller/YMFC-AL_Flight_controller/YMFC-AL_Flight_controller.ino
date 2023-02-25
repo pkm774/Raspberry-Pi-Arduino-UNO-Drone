@@ -17,6 +17,7 @@
 
 #include <Wire.h>                          //Include the Wire.h library so we can communicate with the gyro.
 #include <EEPROM.h>                        //Include the EEPROM.h library so we can store information onto the EEPROM
+#include <HMC5883L.h>
 
 
 /////////////////////////////////
@@ -87,6 +88,10 @@ float angle_roll_acc, angle_pitch_acc, angle_pitch, angle_roll;
 
 boolean gyro_angles_set;
 
+// Magno meter
+HMC5883L compass;
+float heading = 0.00;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Setup routine
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -116,6 +121,8 @@ void setup(){
 
   set_gyro_registers();                                                     //Set the specific gyro registers.
 
+  compass.begin();
+
   for (cal_int = 0; cal_int < 1250 ; cal_int ++){                           //Wait 5 seconds before continuing.
     PORTD |= B11110000;                                                     //Set digital poort 4, 5, 6 and 7 high.
     delayMicroseconds(1000);                                                //Wait 1000us.
@@ -126,7 +133,7 @@ void setup(){
   //Let's take multiple gyro data samples so we can determine the average gyro offset (calibration).
   for (cal_int = 0; cal_int < 2000 ; cal_int ++){                           //Take 2000 readings for calibration.
     if(cal_int % 15 == 0)digitalWrite(12, !digitalRead(12));                //Change the led status to indicate calibration.
-    read_gyro_data();                                                        //Read the gyro output.
+    read_gyro_data();                                                       //Read the gyro output.
     gyro_axis_cal[1] += gyro_axis[1];                                       //Ad roll value to gyro_roll_cal.
     gyro_axis_cal[2] += gyro_axis[2];                                       //Ad pitch value to gyro_pitch_cal.
     gyro_axis_cal[3] += gyro_axis[3];                                       //Ad yaw value to gyro_yaw_cal.
@@ -230,6 +237,12 @@ void loop(){
     roll_level_adjust = 0;                                                  //Set the roll angle correcion to zero.
   }
 
+  Vector norm = compass.readRaw();                                          //Read magnetometer raw values.
+  heading = atan2(norm.YAxis, norm.XAxis);                                  //Calculate heading from raw values.
+  if (heading < 0) {
+    heading += 2 * PI;
+  }
+  heading = heading * 180 / PI;
 
   //For starting the motors: throttle low and yaw left (step 1).
   if(receiver_input_channel_3 < 1050 && receiver_input_channel_4 < 1050)start = 1;
@@ -254,7 +267,7 @@ void loop(){
 
   prepare_pid_subroutine();
   
-  calculate_pid();                                                            //PID inputs are known. So we can calculate the pid output.
+  calculate_pid();                                                           //PID inputs are known. So we can calculate the pid output.
 
   //The battery voltage is needed for compensation.
   //A complementary filter is used to reduce noise.
