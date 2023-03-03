@@ -87,6 +87,12 @@ float angle_roll_acc, angle_pitch_acc, angle_pitch, angle_roll;
 
 boolean gyro_angles_set;
 
+// HC-SR04 Safe Landing
+#define trigPin 2
+#define echoPin 3
+long duration = 0;
+int distance = 0;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Setup routine
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -230,6 +236,7 @@ void loop(){
     roll_level_adjust = 0;                                                  //Set the roll angle correcion to zero.
   }
 
+  get_distance();                                                           //Get HC-SR04 sensor data.
 
   //For starting the motors: throttle low and yaw left (step 1).
   if(receiver_input_channel_3 < 1050 && receiver_input_channel_4 < 1050)start = 1;
@@ -265,7 +272,15 @@ void loop(){
   //Turn on the led if battery voltage is to low.
   if(battery_voltage < 1000 && battery_voltage > 600)digitalWrite(12, HIGH);
 
-  throttle = receiver_input_channel_3;                                      //We need the throttle signal as a base signal.
+  // If throttle is below 1550 and drone is close to the ground
+  if (receiver_input_channel_3 < 1550 && distance < 20) {
+    throttle = map(distance, 0, 20, 1100, 1550);                            // Gradually decrease throttle.
+    if (throttle < 1100) {                                                  // Limit throttle to minimum of 1100.
+      throttle = 1100;
+    }
+  } else {
+    throttle = receiver_input_channel_3;                                    // Otherwise, use normal throttle signal.
+  }
 
   if (start == 2){                                                          //The motors are started.
     if (throttle > 1800) throttle = 1800;                                   //We need some room to keep full control at full throttle.
