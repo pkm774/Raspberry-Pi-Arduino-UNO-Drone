@@ -23,8 +23,8 @@
 //PID gain and limit settings
 /////////////////////////////////
 
-const float pid_p_gain_roll = 1.3;               //Gain setting for the roll P-controller
-const float pid_i_gain_roll = 0.00;              //Gain setting for the roll I-controller
+const float pid_p_gain_roll = 3.0;               //Gain setting for the roll P-controller
+const float pid_i_gain_roll = 0.00008;              //Gain setting for the roll I-controller
 const float pid_d_gain_roll = 18.0;              //Gain setting for the roll D-controller
 const int pid_max_roll = 400;                    //Maximum output of the PID-controller (+/-)
 
@@ -33,8 +33,8 @@ const float pid_i_gain_pitch = pid_i_gain_roll;  //Gain setting for the pitch I-
 const float pid_d_gain_pitch = pid_d_gain_roll;  //Gain setting for the pitch D-controller.
 const int pid_max_pitch = pid_max_roll;          //Maximum output of the PID-controller (+/-)
 
-const float pid_p_gain_yaw = 4.0;                //Gain setting for the pitch P-controller. //4.0
-const float pid_i_gain_yaw = 0.02;               //Gain setting for the pitch I-controller. //0.02
+const float pid_p_gain_yaw = 5.0;                //Gain setting for the pitch P-controller. //4.0
+const float pid_i_gain_yaw = 0.04;               //Gain setting for the pitch I-controller. //0.02
 const float pid_d_gain_yaw = 0.0;                //Gain setting for the pitch D-controller.
 const int pid_max_yaw = 400;                     //Maximum output of the PID-controller (+/-)
 
