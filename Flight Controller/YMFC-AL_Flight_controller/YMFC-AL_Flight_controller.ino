@@ -19,6 +19,16 @@
 #include <EEPROM.h>                        //Include the EEPROM.h library so we can store information onto the EEPROM
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//For debugging and testing purpose
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//#define DEBUG                              //Enable for serial Monitoring at 57600 baud.
+// Uncomment according to requirement
+//#define DEBUG_BATTERY
+//#define DEBUG_ANGLE
+//#define DEBUG_ESC
+//#define DEBUG_RCSIGNAL
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //PID gain and limit settings
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // PID for ROLL
@@ -74,7 +84,9 @@ boolean gyro_angles_set;
 //Setup routine
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup(){
-  //Serial.begin(57600);
+#if defined(DEBUG)
+  Serial.begin(57600);
+#endif
   //Copy the EEPROM data for fast access data.
   for(start = 0; start <= 35; start++)eeprom_data[start] = EEPROM.read(start);
   start = 0;                                                                //Set start back to zero.
@@ -157,6 +169,10 @@ void setup(){
   //Compensation +10 due to internal circuit.
   battery_voltage = ((float)analogRead(0) * 1.466) + 10; // /100 = Voltage
   //The variable battery_voltage holds 1265 if the battery voltage is 12.65V.
+#if defined(DEBUG_BATTERY)
+  Serial.print(F("AnalogRead(0) = ")); Serial.print((float)analogRead(0));
+  Serial.print(F(" Battery_voltage = ")); Serial.println(battery_voltage);
+#endif
 
   loop_timer = micros();                                                    //Set the timer for the next loop.
 
@@ -206,6 +222,11 @@ void loop(){
   angle_pitch = angle_pitch * 0.9996 + angle_pitch_acc * 0.0004;            //Correct the drift of the gyro pitch angle with the accelerometer pitch angle.
   angle_roll = angle_roll * 0.9996 + angle_roll_acc * 0.0004;               //Correct the drift of the gyro roll angle with the accelerometer roll angle.
 
+#if defined(DEBUG_ANGLE)
+  Serial.print(F(" angle_pitch = ")); Serial.print(angle_pitch);
+  Serial.print(F(" angle_roll = ")); Serial.println(angle_roll);
+#endif
+
   pitch_level_adjust = angle_pitch * 15;                                    //Calculate the pitch angle correction
   roll_level_adjust = angle_roll * 15;                                      //Calculate the roll angle correction
 
@@ -213,7 +234,6 @@ void loop(){
     pitch_level_adjust = 0;                                                 //Set the pitch angle correction to zero.
     roll_level_adjust = 0;                                                  //Set the roll angle correcion to zero.
   }
-
 
   //For starting the motors: throttle low and yaw left (step 1).
   if(receiver_input_channel_3 < 1050 && receiver_input_channel_4 < 1050)start = 1;
@@ -273,12 +293,19 @@ void loop(){
   //0.117 = 0.08 * 1.466.
   // +1 for error(+-1) compensation.
   battery_voltage = (battery_voltage * 0.92) + ((float)analogRead(0) * 0.117) + 1;
+#if defined(DEBUG_BATTERY)
+  Serial.print(F("AnalogRead(0) = ")); Serial.print((float)analogRead(0));
+  Serial.print(F(" Battery_voltage = ")); Serial.println(battery_voltage);
+#endif
 
   //Turn on the led if battery voltage is to low.
   if(battery_voltage < 1000 && battery_voltage > 600)digitalWrite(12, HIGH);
 
-
   throttle = receiver_input_channel_3;                                      //We need the throttle signal as a base signal.
+
+#if defined(DEBUG_RCSIGNAL)
+  Serial.print(F(" Throttle signal = ")); Serial.println(receiver_input_channel_3);
+#endif
 
   if (start == 2){                                                          //The motors are started.
     if (throttle > 1800) throttle = 1800;                                   //We need some room to keep full control at full throttle.
@@ -311,6 +338,13 @@ void loop(){
     esc_3 = 1000;                                                           //If start is not 2 keep a 1000us pulse for ess-3.
     esc_4 = 1000;                                                           //If start is not 2 keep a 1000us pulse for ess-4.
   }
+
+#if defined(DEBUG_ESC)
+  Serial.print(F("esc_1 = ")); Serial.print(esc_1);
+  Serial.print(F(" esc_2 = ")); Serial.print(esc_2);
+  Serial.print(F(" esc_3 = ")); Serial.print(esc_3);
+  Serial.print(F(" esc_4 = ")); Serial.println(esc_4);
+#endif
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   //Creating the pulses for the ESC's is explained in this video:
