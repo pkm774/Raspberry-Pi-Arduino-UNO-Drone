@@ -200,8 +200,8 @@ void loop(){
   }
   
   //Place the MPU-6050 spirit level and note the values in the following two lines for calibration.
-  angle_pitch_acc -= 0.0;                                                   //Accelerometer calibration value for pitch.
-  angle_roll_acc -= 0.0;                                                    //Accelerometer calibration value for roll.
+  angle_pitch_acc -= -2.0;                                                   //Accelerometer calibration value for pitch.
+  angle_roll_acc -= 1.0;                                                    //Accelerometer calibration value for roll.
   
   angle_pitch = angle_pitch * 0.9996 + angle_pitch_acc * 0.0004;            //Correct the drift of the gyro pitch angle with the accelerometer pitch angle.
   angle_roll = angle_roll * 0.9996 + angle_roll_acc * 0.0004;               //Correct the drift of the gyro roll angle with the accelerometer roll angle.
